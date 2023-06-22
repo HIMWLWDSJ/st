@@ -17,6 +17,7 @@
 
 char *argv0;
 #include "arg.h"
+#include "hb.h"
 #include "st.h"
 #include "win.h"
 
@@ -1150,7 +1151,7 @@ int xmakeglyphfontspecs(XftGlyphFontSpec *specs, const Glyph *glyphs, int len,
     mode = glyphs[i].mode;
 
     /* Skip dummy wide-character spacing. */
-    if (mode == ATTR_WDUMMY)
+    if (mode & ATTR_WDUMMY)
       continue;
 
     /* Determine font for glyph if different from previous glyph. */
@@ -1255,6 +1256,9 @@ int xmakeglyphfontspecs(XftGlyphFontSpec *specs, const Glyph *glyphs, int len,
     xp += runewidth;
     numspecs++;
   }
+
+  /* Harfbuzz transformation for ligatures. */
+  hbtransform(specs, glyphs, len, x, y);
 
   return numspecs;
 }
@@ -1407,13 +1411,17 @@ void xdrawglyph(Glyph g, int x, int y) {
   xdrawglyphfontspecs(&spec, g, numspecs, x, y);
 }
 
-void xdrawcursor(int cx, int cy, Glyph g, int ox, int oy, Glyph og) {
+void xdrawcursor(int cx, int cy, Glyph g, int ox, int oy, Glyph og, Line line,
+                 int len) {
   Color drawcol;
 
   /* remove the old cursor */
   if (selected(ox, oy))
     og.mode ^= ATTR_REVERSE;
-  xdrawglyph(og, ox, oy);
+
+  /* Redraw the line where cursor was previously.
+   * It will restore the ligatures broken by the cursor. */
+  xdrawline(line, 0, oy, len);
 
   if (IS_SET(MODE_HIDE))
     return;
